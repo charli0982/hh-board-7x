@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Family Organization</title>
+
+<!-- FullCalendar (calendar rendering) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.15/index.global.min.js"></script>
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+
+<style>
+/* ============================================================
+   CONFIG lives in the <script> at the bottom.
+   To go live: paste your Apps Script /exec URL into APPS_SCRIPT_URL.
+   ============================================================ */
+
+:root{
+  --bg:#eef0f4;          /* soft cool-grey board bg   */
+  --surface:#ffffff;     /* cards                     */
+  --surface-2:#f2f4f8;   /* raised / hover            */
+  --line:#dce0e8;        /* hairlines                 */
+  --text:#1f2733;        /* deep ink                  */
+  --muted:#5c6675;
+  --muted-2:#8a94a3;
+
+  /* person + category accents (also set in JS CONFIG.people) */
+  --c-charlotte:#2f7fe0;
+  --c-will:#1f9d63;
+  --c-arlo:#d97824;
+  --c-school:#8a53c9;
+  --c-family:#d94867;
+
+  /* FullCalendar theming */
+  --fc-border-color:var(--line);
+  --fc-page-bg-color:transparent;
+  --fc-neutral-bg-color:var(--surface-2);
+  --fc-today-bg-color:rgba(47,127,224,.08);
+  --fc-now-indicator-color:#d94867;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--text);
+  font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  overflow:hidden;
+}
+
+/* ---------------- layout shell ---------------- */
+.board{
+  height:100vh;display:flex;flex-direction:column;
+  gap:14px;padding:16px 20px;
+}
+.masthead{display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+
+.wordmark{display:flex;flex-direction:column;line-height:1;min-width:210px}
+.wordmark .name{
+  font-family:"Fraunces",serif;font-weight:600;font-size:30px;letter-spacing:.2px;
+}
+.wordmark .kicker{
+  font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--muted-2);margin-top:6px;
+}
+
+.datetime{margin-left:auto;text-align:right;display:flex;flex-direction:column;gap:2px}
+.clock{font-family:"IBM Plex Mono",monospace;font-size:34px;font-weight:500;letter-spacing:1px}
+.today{font-family:"Fraunces",serif;font-size:18px;color:var(--muted)}
+
+/* natural-language add bar — the signature element */
+.tellbar{
+  display:flex;align-items:center;gap:12px;
+  background:linear-gradient(180deg,var(--surface-2),var(--surface));
+  border:1px solid var(--line);border-radius:16px;padding:10px 12px 10px 18px;
+}
+.tellbar .spark{font-family:"Fraunces",serif;font-size:15px;color:var(--muted);white-space:nowrap}
+.tellbar input{
+  flex:1;background:transparent;border:0;outline:0;color:var(--text);
+  font-family:"Inter";font-size:18px;padding:8px 4px;min-width:0;
+}
+.tellbar input::placeholder{color:var(--muted-2)}
+.tellbar button{
+  border:0;border-radius:11px;padding:12px 22px;font-size:16px;font-weight:600;cursor:pointer;
+  background:var(--c-charlotte);color:#ffffff;transition:transform .08s ease,filter .15s ease;
+}
+.tellbar button:active{transform:scale(.96)}
+.tellbar button:disabled{opacity:.5;cursor:default}
+.tellbar .mic{
+  border:1px solid var(--line);border-radius:11px;width:54px;height:48px;padding:0;font-size:20px;
+  background:var(--surface-2);color:var(--text);display:grid;place-items:center;cursor:pointer;
+  transition:transform .08s ease;
+}
+.tellbar .mic:active{transform:scale(.94)}
+.tellbar .mic.on{background:var(--c-family);border-color:var(--c-family);animation:pulse 1.1s infinite}
+@keyframes pulse{
+  0%{box-shadow:0 0 0 0 rgba(217,72,103,.5)}
+  70%{box-shadow:0 0 0 13px rgba(217,72,103,0)}
+  100%{box-shadow:0 0 0 0 rgba(217,72,103,0)}
+}
+
+/* ---------------- calendar column ---------------- */
+.calwrap{
+  flex:1;min-height:0;display:flex;flex-direction:column;
+  background:var(--surface);border:1px solid var(--line);border-radius:18px;overflow:hidden;
+  box-shadow:0 1px 3px rgba(31,39,51,.06);
+}
+.calbar{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.nav{display:flex;gap:6px}
+.nav button, .views button{
+  border:1px solid var(--line);background:var(--surface-2);color:var(--text);
+  border-radius:11px;height:46px;min-width:46px;padding:0 16px;font-size:15px;font-weight:600;cursor:pointer;
+}
+.nav button:active,.views button:active{transform:scale(.96)}
+.views{margin-left:auto;display:flex;gap:6px;background:var(--bg);padding:5px;border-radius:14px;border:1px solid var(--line)}
+.views button{height:44px;border:0;background:transparent;color:var(--muted)}
+.views button.on{background:var(--c-charlotte);color:#ffffff}
+.title{font-family:"Fraunces",serif;font-size:22px;font-weight:600;padding-left:4px}
+#calendar{flex:1;min-height:0;padding:8px 12px 14px}
+#dayView{display:none;flex:1;min-height:0;overflow-y:auto;padding:8px 18px 20px}
+.dv-sec{margin-top:16px}
+.dv-label{
+  font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted-2);
+  font-weight:700;padding:8px 4px;border-bottom:1px solid var(--line);margin-bottom:4px;
+}
+.dv-row{
+  width:100%;display:flex;align-items:center;gap:14px;padding:13px 8px;
+  border:0;background:transparent;cursor:pointer;text-align:left;border-radius:10px;
+}
+.dv-row:hover{background:var(--surface-2)}
+.dv-time{width:82px;flex:0 0 82px;font-family:"IBM Plex Mono",monospace;font-size:14px;color:var(--muted)}
+.dv-dot{width:10px;height:10px;border-radius:50%;flex:0 0 10px}
+.dv-title{flex:1;font-size:17px;font-weight:600;color:var(--text);min-width:0}
+.dv-who{font-size:13px;font-weight:600;white-space:nowrap}
+.dv-empty{color:var(--muted-2);padding:10px 8px;font-size:15px}
+
+/* FullCalendar tweaks for legibility at a distance */
+.fc{height:100%}
+.fc .fc-col-header-cell-cushion{color:var(--muted);text-transform:uppercase;font-size:12px;letter-spacing:.08em;padding:8px 4px}
+.fc .fc-daygrid-day-number{color:var(--text);font-weight:600;font-size:15px;padding:6px 8px}
+.fc .fc-day-other .fc-daygrid-day-number{color:var(--muted-2)}
+.fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number{
+  background:var(--c-charlotte);color:#ffffff;border-radius:9px;
+}
+.fc .fc-event{border:0;border-radius:8px;padding:2px 7px;font-size:14px;font-weight:600;cursor:default}
+.fc .fc-event .fc-event-time{font-weight:500;opacity:.8}
+.fc .fc-timegrid-slot-label-cushion,.fc .fc-timegrid-axis-cushion{color:var(--muted);font-size:12px}
+.fc .fc-scrollgrid{border-color:var(--line)}
+.fc td,.fc th{border-color:var(--line)}
+.fc .fc-list-day-cushion{background:var(--surface-2)}
+.fc .fc-list-event:hover td{background:var(--surface-2)}
+.fc-theme-standard .fc-list{border-color:var(--line)}
+
+/* ---------------- bottom tray (4 boxes) ---------------- */
+.tray{display:flex;gap:14px;height:27vh;min-height:180px}
+.tray .card{flex:1;min-width:0}
+.card{
+  background:var(--surface);border:1px solid var(--line);border-radius:18px;
+  display:flex;flex-direction:column;min-height:0;box-shadow:0 1px 3px rgba(31,39,51,.06);
+}
+.card h2{
+  margin:0;padding:16px 18px 12px;font-family:"Fraunces",serif;font-weight:600;font-size:19px;
+  display:flex;align-items:center;gap:10px;
+}
+.card h2 .count{
+  margin-left:auto;font-family:"Inter";font-size:13px;font-weight:600;color:var(--muted);
+  background:var(--bg);border:1px solid var(--line);border-radius:20px;padding:3px 10px;
+}
+.list{overflow-y:auto;padding:4px 10px 12px;display:flex;flex-direction:column;gap:6px}
+.task{
+  display:flex;align-items:center;gap:13px;padding:12px 12px;border-radius:12px;cursor:pointer;
+  transition:background .12s ease;
+}
+.task:active{background:var(--surface-2)}
+.check{
+  width:26px;height:26px;flex:0 0 26px;border-radius:8px;border:2px solid var(--muted-2);
+  display:grid;place-items:center;transition:all .15s ease;
+}
+.check svg{width:16px;height:16px;stroke:#ffffff;stroke-width:3;fill:none;opacity:0;transform:scale(.5);transition:all .15s ease}
+.task.done .check{background:var(--c-will);border-color:var(--c-will)}
+.task.done .check svg{opacity:1;transform:scale(1)}
+.task .body{display:flex;flex-direction:column;gap:2px;min-width:0}
+.task .txt{font-size:16px;font-weight:500}
+.task.done .txt{color:var(--muted);text-decoration:line-through}
+.task .who{font-size:12px;color:var(--muted)}
+.donefoot{
+  padding:8px 18px 14px;font-size:13px;font-weight:600;color:var(--c-will);
+  border-top:1px solid var(--line);margin-top:auto;
+}
+.donefoot:empty{display:none}
+
+/* event details pop-up */
+.modal{position:fixed;inset:0;background:rgba(31,39,51,.42);display:none;place-items:center;z-index:90;padding:20px}
+.modal.show{display:grid}
+.modalcard{
+  position:relative;background:var(--surface);border:1px solid var(--line);border-radius:18px;
+  width:min(92vw,460px);padding:28px 30px;box-shadow:0 24px 70px rgba(31,39,51,.28);overflow:hidden;
+}
+.ev-accent{position:absolute;top:0;left:0;right:0;height:6px}
+.modalclose{
+  position:absolute;top:10px;right:14px;border:0;background:transparent;
+  font-size:28px;line-height:1;color:var(--muted);cursor:pointer;
+}
+.ev-who{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-top:8px}
+.ev-title{font-family:"Fraunces",serif;font-size:26px;font-weight:600;margin:4px 0 10px;padding-right:20px}
+.ev-when{font-size:16px;color:var(--muted);margin-bottom:14px}
+.ev-loc{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:14px 0;border-top:1px solid var(--line);font-size:16px;
+}
+.ev-loc a{color:var(--c-charlotte);font-weight:600;text-decoration:none;font-size:14px;white-space:nowrap}
+.ev-notes{padding:14px 0 0;border-top:1px solid var(--line)}
+.ev-notes-label{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted-2);margin-bottom:6px}
+.ev-notes-text{font-size:16px;line-height:1.5;white-space:pre-wrap}
+
+/* legend / person filters */
+.legend{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.chip{
+  display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:22px;cursor:pointer;
+  background:var(--surface);border:1px solid var(--line);font-size:14px;font-weight:600;user-select:none;
+  transition:opacity .15s ease;
+}
+.chip .dot{width:11px;height:11px;border-radius:50%}
+.chip.off{opacity:.38}
+.chip.off .name{text-decoration:line-through}
+
+/* toast */
+.toast{
+  position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);
+  background:var(--surface-2);border:1px solid var(--line);color:var(--text);
+  padding:14px 22px;border-radius:14px;font-size:16px;font-weight:500;
+  box-shadow:0 12px 40px rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:all .25s ease;max-width:70vw;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* family password gate (for public hosting) */
+.gate{position:fixed;inset:0;background:var(--bg);display:none;place-items:center;z-index:100}
+.gate.show{display:grid}
+.gatecard{
+  background:var(--surface);border:1px solid var(--line);border-radius:20px;
+  padding:38px 40px;width:min(90vw,420px);text-align:center;
+}
+.gatecard h2{font-family:"Fraunces",serif;font-size:28px;font-weight:600;margin:0 0 8px}
+.gatecard p{color:var(--muted);margin:0 0 22px;font-size:16px}
+.gatecard input{
+  width:100%;background:var(--bg);border:1px solid var(--line);border-radius:12px;
+  padding:14px 16px;font-size:18px;color:var(--text);outline:0;margin-bottom:14px;
+}
+.gatecard button{
+  width:100%;border:0;border-radius:12px;padding:14px;font-size:17px;font-weight:600;
+  background:var(--c-charlotte);color:#ffffff;cursor:pointer;
+}
+.gatecard .err{color:var(--c-family);font-size:14px;min-height:18px;margin-top:6px}
+
+/* dinner box */
+.dinnerbody{padding:6px 18px 18px;display:flex;flex-direction:column;gap:12px;overflow-y:auto}
+.dinner .meal{font-family:"Fraunces",serif;font-size:26px;font-weight:600;line-height:1.15}
+.dinner .cooktime{
+  align-self:flex-start;display:inline-flex;align-items:center;gap:6px;
+  background:var(--surface-2);border:1px solid var(--line);border-radius:20px;
+  padding:5px 13px;font-size:14px;font-weight:600;color:var(--c-arlo);
+}
+.dinner .ing-label{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted-2)}
+.dinner .ing{display:flex;flex-wrap:wrap;gap:7px}
+.dinner .ing span{
+  background:var(--bg);border:1px solid var(--line);border-radius:9px;
+  padding:6px 11px;font-size:15px;
+}
+.dinner .empty{color:var(--muted);font-size:16px;padding-top:6px}
+
+/* smaller screens: rail drops below */
+@media (max-width:900px){
+  .calwrap{flex:none;height:46vh}
+  .tray{flex-wrap:wrap;height:auto}
+  .tray .card{flex:1 1 45%;min-height:170px}
+  .datetime{margin-left:0}
+}
+</style>
+</head>
+<body>
+<div class="board">
+
+  <header class="masthead">
+    <div class="wordmark">
+      <span class="name">Family&nbsp;Organization</span>
+      <span class="kicker">Hickman Home</span>
+    </div>
+    <div class="datetime">
+      <span class="clock" id="clock">--:--</span>
+      <span class="today" id="todayLabel">—</span>
+    </div>
+  </header>
+
+  <div class="tellbar">
+    <span class="spark">Tell the board…</span>
+    <input id="nlInput" type="text"
+      placeholder="Speak or type — “add milk to chores” · “electric bill due Friday” · “meeting every Tuesday until Jun 30”" />
+    <button id="micBtn" class="mic" title="Speak to the board" aria-label="Speak">🎤</button>
+    <button id="nlBtn">Add</button>
+  </div>
+
+  <div class="legend" id="legend"></div>
+
+  <section class="calwrap">
+    <div class="calbar">
+      <div class="nav">
+        <button id="prev">‹</button>
+        <button id="today">Today</button>
+        <button id="next">›</button>
+      </div>
+      <span class="title" id="calTitle"></span>
+      <div class="views">
+        <button data-view="customDay">Day</button>
+        <button data-view="listWeek">Week</button>
+        <button data-view="dayGridMonth" class="on">Month</button>
+      </div>
+    </div>
+    <div id="calendar"></div>
+    <div id="dayView"></div>
+  </section>
+
+  <section class="tray">
+    <div class="card">
+      <h2>🧹 Chores <span class="count" id="choreCount"></span></h2>
+      <div class="list" id="choreList"></div>
+      <div class="donefoot" id="choreDone"></div>
+    </div>
+    <div class="card">
+      <h2>📞 Calls <span class="count" id="callCount"></span></h2>
+      <div class="list" id="callList"></div>
+      <div class="donefoot" id="callDone"></div>
+    </div>
+    <div class="card">
+      <h2>💵 Bills due <span class="count" id="billCount"></span></h2>
+      <div class="list" id="billList"></div>
+      <div class="donefoot" id="billDone"></div>
+    </div>
+    <div class="card">
+      <h2>🔨 Renovations <span class="count" id="renoCount"></span></h2>
+      <div class="list" id="renoList"></div>
+      <div class="donefoot" id="renoDone"></div>
+    </div>
+    <div class="card dinner">
+      <h2>🍽️ Tonight's dinner</h2>
+      <div class="dinnerbody" id="dinnerBox"></div>
+    </div>
+  </section>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal" id="eventModal">
+  <div class="modalcard">
+    <div class="ev-accent"></div>
+    <button class="modalclose" id="evClose" aria-label="Close">×</button>
+    <div class="ev-who"></div>
+    <h3 class="ev-title"></h3>
+    <div class="ev-when"></div>
+    <div class="ev-loc">
+      <span class="ev-loc-text"></span>
+      <a target="_blank" rel="noopener">Open in Maps ↗</a>
+    </div>
+    <div class="ev-notes">
+      <div class="ev-notes-label">Notes</div>
+      <div class="ev-notes-text"></div>
+    </div>
+  </div>
+</div>
+
+<div class="gate" id="gate">
+  <div class="gatecard">
+    <h2>Family Organization</h2>
+    <p>Enter the family password to view the board.</p>
+    <input id="gateInput" type="password" placeholder="Family password" autocomplete="current-password" />
+    <button id="gateBtn">Unlock</button>
+    <div class="err" id="gateErr"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   CONFIG — the only thing you edit to go live
+   ============================================================ */
+const CONFIG = {
+  // Paste your deployed Apps Script Web App URL (ends in /exec).
+  // Leave "" to run on the built-in sample data below.
+  APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbyKMQgHqgUQRkK8gJn-Hw8kEuW0uYzXtijMzhygMTN1L3GP7keyjw2B8W1IOC6kyJje/exec",
+
+  refreshMinutes: 5,
+
+  // Colours per person / category. Add family members here later.
+  people: {
+    Charlotte: getVar('--c-charlotte'),
+    Will:      getVar('--c-will'),
+    Arlo:      getVar('--c-arlo'),
+    School:    getVar('--c-school'),
+    Family:    getVar('--c-family'),
+  }
+};
+
+function getVar(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+
+/* ---------------- sample data (used until backend is wired) ---------------- */
+function sampleData(){
+  const d = new Date(); const y=d.getFullYear(), m=d.getMonth();
+  const iso=(day,h,min)=>new Date(y,m,day,h,min).toISOString();
+  const today=d.getDate();
+  return {
+    events:[
+      {id:'s1', title:'School run', who:'Charlotte', start:iso(today,8,15),  end:iso(today,8,45)},
+      {id:'s2', title:'Tutoring — Marietta library', who:'Arlo', start:iso(today,15,30), end:iso(today,17,0), location:'Marietta Library, 112 Whitlock Ave', notes:'Bring math workbook and reading log.'},
+      {id:'s3', title:'Dentist', who:'Will', start:iso(today,11,0), end:iso(today,11,45)},
+      {id:'s4', title:'Book fair', who:'School', start:iso(today+1,0,0), end:iso(today+1,0,0), allDay:true},
+      {id:'s5', title:'Soccer practice', who:'Arlo', start:iso(today+2,17,0), end:iso(today+2,18,30)},
+      {id:'s6', title:'Date night', who:'Family', start:iso(today+3,19,0), end:iso(today+3,22,0)},
+      {id:'s7', title:'Parent-on-duty: Charlotte', who:'Charlotte', start:iso(today+4,0,0), allDay:true},
+      {id:'s8', title:'Teacher work day (no school)', who:'School', start:iso(today+6,0,0), allDay:true},
+    ],
+    tasks:[
+      {id:'c1', type:'chore', text:'Empty dishwasher', who:'Arlo',      done:false},
+      {id:'c2', type:'chore', text:'Take bins out',     who:'Will',      done:false},
+      {id:'c3', type:'chore', text:'Water plants',      who:'Charlotte', done:true},
+      {id:'c4', type:'chore', text:'Change bed sheets',  who:'Family',    done:false},
+      {id:'k1', type:'call',  text:'Call plumber re: leak', who:'Charlotte', done:false},
+      {id:'k2', type:'call',  text:'RSVP birthday party',   who:'Will',      done:false},
+      {id:'k3', type:'call',  text:'Book dentist for Arlo',  who:'Charlotte', done:false},
+      {id:'b1', type:'bill',  text:'Electric — Georgia Power', who:'Due Fri',   done:false},
+      {id:'b2', type:'bill',  text:'Water & sewer',           who:'Due 25th',  done:false},
+      {id:'b3', type:'bill',  text:'Internet',                who:'Due 1st',   done:true},
+      {id:'r1', type:'renovation', text:'Repaint hallway',     who:'In progress',   done:false},
+      {id:'r2', type:'renovation', text:'New kitchen faucet',  who:'Awaiting part', done:false},
+      {id:'r3', type:'renovation', text:'Fix deck railing',    who:'Quote needed',  done:false},
+    ],
+    dinner:{ meal:'Chicken tacos', cooktime:'30 min', ingredients:'tortillas, chicken, peppers, onion, salsa, lime' }
+  };
+}
+
+/* ---------------- state + calendar ---------------- */
+let DATA = {events:[], tasks:[]};
+const hidden = new Set();      // people currently filtered out
+let calendar;
+
+document.addEventListener('DOMContentLoaded', () => {
+  calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+    initialView:'dayGridMonth',
+    headerToolbar:false,
+    height:'100%',
+    nowIndicator:true,
+    firstDay:1,
+    slotMinTime:'06:00:00',
+    slotMaxTime:'22:00:00',
+    dayMaxEvents:true,
+    expandRows:true,
+    noEventsContent:'Nothing scheduled',
+    displayEventEnd:false,
+    datesSet: () => { document.getElementById('calTitle').textContent = calendar.view.title; },
+    eventDidMount: (info) => {
+      const c = colourFor(info.event.extendedProps.who);
+      // In list views FullCalendar uses a coloured dot; keep chip styling for grid only.
+      if(info.view.type.indexOf('list') === -1){
+        info.el.style.background = c;
+        info.el.style.color = readable(c);
+      }
+    },
+    eventClick: (info) => { info.jsEvent.preventDefault(); openEvent(info.event); }
+  });
+  calendar.render();
+
+  // wire controls
+  document.getElementById('prev').onclick  = () => calendar.prev();
+  document.getElementById('next').onclick  = () => calendar.next();
+  document.getElementById('today').onclick = () => calendar.today();
+  document.querySelectorAll('.views button').forEach(b=>{
+    b.onclick = () => {
+      document.querySelectorAll('.views button').forEach(x=>x.classList.remove('on'));
+      b.classList.add('on');
+      if(b.dataset.view === 'customDay'){
+        showDayView();
+      } else {
+        hideDayView();
+        calendar.changeView(b.dataset.view);
+      }
+    };
+  });
+  document.getElementById('nlBtn').onclick = submitNL;
+  document.getElementById('nlInput').addEventListener('keydown', e=>{ if(e.key==='Enter') submitNL(); });
+
+  buildLegend();
+  initVoice();
+  document.getElementById('gateBtn').onclick = saveKey;
+  document.getElementById('gateInput').addEventListener('keydown', e=>{ if(e.key==='Enter') saveKey(); });
+  document.getElementById('evClose').onclick = closeEvent;
+  document.getElementById('eventModal').addEventListener('click', e=>{ if(e.target.id==='eventModal') closeEvent(); });
+  tickClock(); setInterval(tickClock, 1000);
+  loadData();
+  setInterval(loadData, CONFIG.refreshMinutes*60*1000);
+});
+
+/* ---------------- family password (for public hosting) ---------------- */
+let famKey = '';
+try { famKey = localStorage.getItem('famKey') || ''; } catch(e) {}
+
+function withKey(url){
+  if(!famKey) return url;
+  return url + (url.indexOf('?') > -1 ? '&' : '?') + 'key=' + encodeURIComponent(famKey);
+}
+function showGate(msg){
+  document.getElementById('gateErr').textContent = msg || '';
+  document.getElementById('gate').classList.add('show');
+  document.getElementById('gateInput').focus();
+}
+function saveKey(){
+  const v = document.getElementById('gateInput').value.trim();
+  if(!v) return;
+  famKey = v;
+  try { localStorage.setItem('famKey', v); } catch(e){}
+  document.getElementById('gate').classList.remove('show');
+  loadData();
+}
+
+/* ---------------- data loading ---------------- */
+async function loadData(){
+  if(CONFIG.APPS_SCRIPT_URL){
+    try{
+      const r = await fetch(withKey(CONFIG.APPS_SCRIPT_URL));
+      DATA = await r.json();
+      if(DATA && DATA.error === 'unauthorized'){
+        showGate(famKey ? 'Wrong password — try again' : '');
+        return;
+      }
+    }catch(err){ toast('Could not reach the calendar service'); DATA = sampleData(); }
+  }else{
+    DATA = sampleData();
+  }
+  renderEvents();
+  renderTasks();
+}
+
+function renderEvents(){
+  calendar.removeAllEvents();
+  DATA.events
+    .filter(e => !hidden.has(e.who))
+    .forEach(e => {
+      const c = colourFor(e.who);
+      calendar.addEvent({
+        id:e.id, title:e.title, start:e.start, end:e.end, allDay:!!e.allDay,
+        color:c, textColor:readable(c),
+        extendedProps:{who:e.who, location:e.location||'', notes:e.notes||''}
+      });
+    });
+  if(dayVisible) renderDayView();
+}
+
+function fillModal(o){
+  const day = o.start.toLocaleDateString([], {weekday:'long', month:'long', day:'numeric'});
+  const when = o.allDay
+    ? day + ' · All day'
+    : day + ' · ' + o.start.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) +
+      (o.end ? ' – ' + o.end.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '');
+  const colour = colourFor(o.who);
+  const m = document.getElementById('eventModal');
+  m.querySelector('.ev-accent').style.background = colour;
+  m.querySelector('.ev-title').textContent = o.title;
+  const whoEl = m.querySelector('.ev-who');
+  whoEl.textContent = o.who || ''; whoEl.style.color = colour;
+  m.querySelector('.ev-when').textContent = when;
+
+  const loc = m.querySelector('.ev-loc');
+  if(o.location){
+    loc.style.display = '';
+    loc.querySelector('.ev-loc-text').textContent = o.location;
+    loc.querySelector('a').href =
+      'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(o.location);
+  } else loc.style.display = 'none';
+
+  const notes = m.querySelector('.ev-notes');
+  if(o.notes){ notes.style.display=''; notes.querySelector('.ev-notes-text').textContent = o.notes; }
+  else notes.style.display = 'none';
+
+  m.classList.add('show');
+}
+function openEvent(ev){          // from a FullCalendar event
+  const p = ev.extendedProps || {};
+  fillModal({who:p.who, title:ev.title, start:ev.start, end:ev.end,
+             allDay:ev.allDay, location:p.location, notes:p.notes});
+}
+function openEventData(e){       // from a raw data event
+  fillModal({who:e.who, title:e.title, start:new Date(e.allDay ? e.start+'T00:00:00' : e.start),
+             end:e.end ? new Date(e.end) : null, allDay:e.allDay,
+             location:e.location, notes:e.notes});
+}
+function closeEvent(){ document.getElementById('eventModal').classList.remove('show'); }
+
+/* ---------------- grouped Day view (Before 8am / 8am–5pm / After 5pm) ---------------- */
+let dayVisible = false;
+function showDayView(){
+  dayVisible = true;
+  document.getElementById('calendar').style.display = 'none';
+  document.getElementById('dayView').style.display = 'flex';
+  document.getElementById('dayView').style.flexDirection = 'column';
+  const t = new Date();
+  document.getElementById('calTitle').textContent =
+    t.toLocaleDateString([], {weekday:'long', month:'long', day:'numeric'});
+  renderDayView();
+}
+function hideDayView(){
+  dayVisible = false;
+  document.getElementById('dayView').style.display = 'none';
+  document.getElementById('calendar').style.display = 'block';
+  calendar.updateSize();
+}
+function renderDayView(){
+  const el = document.getElementById('dayView');
+  const now = new Date();
+  const y = now.getFullYear(), mo = now.getMonth(), d = now.getDate();
+  const isTodayTimed = e => {
+    const s = new Date(e.start);
+    return s.getFullYear()===y && s.getMonth()===mo && s.getDate()===d;
+  };
+  const isTodayAllDay = e => {
+    const s = new Date(e.start + 'T00:00:00');
+    return s.getFullYear()===y && s.getMonth()===mo && s.getDate()===d;
+  };
+  const evs = DATA.events.filter(e => !hidden.has(e.who))
+    .filter(e => e.allDay ? isTodayAllDay(e) : isTodayTimed(e));
+
+  const allday=[], before=[], during=[], after=[];
+  evs.forEach(e=>{
+    if(e.allDay){ allday.push(e); return; }
+    const h = new Date(e.start).getHours();
+    if(h < 8) before.push(e); else if(h < 17) during.push(e); else after.push(e);
+  });
+  const byTime = (a,b)=> new Date(a.start) - new Date(b.start);
+  before.sort(byTime); during.sort(byTime); after.sort(byTime);
+
+  const section = (label, arr) =>
+    `<div class="dv-sec"><div class="dv-label">${label}</div>` +
+    (arr.length ? arr.map(dvRow).join('') : `<div class="dv-empty">Nothing</div>`) +
+    `</div>`;
+
+  el.innerHTML =
+    (allday.length ? section('All day', allday) : '') +
+    section('Before 8am', before) +
+    section('8am – 5pm', during) +
+    section('After 5pm', after);
+
+  el.querySelectorAll('.dv-row').forEach(btn=>{
+    btn.onclick = () => {
+      const e = DATA.events.find(x => x.id === btn.dataset.id);
+      if(e) openEventData(e);
+    };
+  });
+}
+function dvRow(e){
+  const t = e.allDay ? 'All day'
+    : new Date(e.start).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  const c = colourFor(e.who);
+  return `<button class="dv-row" data-id="${e.id}">
+    <span class="dv-time">${t}</span>
+    <span class="dv-dot" style="background:${c}"></span>
+    <span class="dv-title">${escapeHTML(e.title)}</span>
+    <span class="dv-who" style="color:${c}">${escapeHTML(e.who||'')}</span>
+  </button>`;
+}
+
+function renderTasks(){
+  const groups = {
+    chore:      {list:'choreList', count:'choreCount', foot:'choreDone'},
+    call:       {list:'callList',  count:'callCount',  foot:'callDone'},
+    bill:       {list:'billList',  count:'billCount',  foot:'billDone'},
+    renovation: {list:'renoList',  count:'renoCount',  foot:'renoDone'},
+  };
+  Object.keys(groups).forEach(type=>{
+    const all  = DATA.tasks.filter(t=>t.type===type);
+    const open = all.filter(t=>!t.done);
+    const done = all.length - open.length;
+    fillList(groups[type].list, open);              // only show outstanding ones
+    document.getElementById(groups[type].count).textContent = `${open.length} left`;
+    const foot = document.getElementById(groups[type].foot);
+    foot.textContent = done ? `✓ ${done} done` : '';
+  });
+  renderDinner();
+}
+
+function renderDinner(){
+  const box = document.getElementById('dinnerBox');
+  const d = DATA.dinner;
+  if(!d || !d.meal){
+    box.innerHTML = `<div class="empty">No dinner planned tonight</div>`;
+    return;
+  }
+  const ings = (d.ingredients||'').split(',').map(s=>s.trim()).filter(Boolean);
+  box.innerHTML = `
+    <div class="meal">${escapeHTML(d.meal)}</div>
+    ${d.cooktime?`<div class="cooktime">⏱ ${escapeHTML(d.cooktime)}</div>`:''}
+    ${ings.length?`<div class="ing-label">Ingredients</div>
+      <div class="ing">${ings.map(i=>`<span>${escapeHTML(i)}</span>`).join('')}</div>`:''}
+  `;
+}
+
+function fillList(id, items){
+  const el = document.getElementById(id); el.innerHTML='';
+  items.forEach(t=>{
+    const row = document.createElement('div');
+    row.className = 'task' + (t.done?' done':'');
+    row.innerHTML = `
+      <div class="check"><svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg></div>
+      <div class="body">
+        <span class="txt">${escapeHTML(t.text)}</span>
+        ${t.who?`<span class="who" style="color:${colourFor(t.who)}">${escapeHTML(t.who)}</span>`:''}
+      </div>`;
+    row.onclick = () => toggleTask(t);
+    el.appendChild(row);
+  });
+}
+
+async function toggleTask(t){
+  t.done = !t.done;               // optimistic
+  renderTasks();
+  if(CONFIG.APPS_SCRIPT_URL){
+    try{
+      await fetch(withKey(CONFIG.APPS_SCRIPT_URL), {
+        method:'POST',
+        body:JSON.stringify({action:'toggleTask', id:t.id, done:t.done})
+      });
+    }catch(err){ toast('Saved locally — sync failed'); }
+  }
+}
+
+/* ---------------- voice input (Web Speech API) ---------------- */
+let recog = null, listening = false;
+function initVoice(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const mic = document.getElementById('micBtn');
+  if(!SR){ mic.style.display='none'; return; }   // browser can't do it
+
+  recog = new SR();
+  recog.lang = 'en-US';
+  recog.interimResults = true;      // show words as they're spoken
+  recog.continuous = false;         // stop automatically after a pause
+
+  recog.onresult = (e) => {
+    let txt = '';
+    for(const r of e.results) txt += r[0].transcript;
+    document.getElementById('nlInput').value = txt;
+  };
+  recog.onend = () => {
+    listening = false; mic.classList.remove('on');
+    if(document.getElementById('nlInput').value.trim()) submitNL();   // auto-send
+  };
+  recog.onerror = (e) => {
+    listening = false; mic.classList.remove('on');
+    if(e.error === 'not-allowed' || e.error === 'service-not-allowed') toast('Allow microphone access to use voice');
+    else if(e.error === 'no-speech') toast("Didn't catch that — tap 🎤 and try again");
+    else toast('Voice input unavailable in this browser');
+  };
+
+  mic.onclick = () => {
+    if(listening){ recog.stop(); return; }
+    document.getElementById('nlInput').value = '';
+    try{ recog.start(); listening = true; mic.classList.add('on'); toast('Listening… speak now'); }
+    catch(err){ /* start() can throw if called twice; ignore */ }
+  };
+}
+
+/* ---------------- natural-language add ---------------- */
+async function submitNL(){
+  const input = document.getElementById('nlInput');
+  const text = input.value.trim();
+  if(!text) return;
+  const btn = document.getElementById('nlBtn');
+  btn.disabled = true; btn.textContent='…';
+
+  if(!CONFIG.APPS_SCRIPT_URL){
+    toast('Connect the calendar service to enable adding');
+    btn.disabled=false; btn.textContent='Add'; return;
+  }
+  try{
+    const r = await fetch(withKey(CONFIG.APPS_SCRIPT_URL), {
+      method:'POST', body:JSON.stringify({action:'nlAdd', text})
+    });
+    const res = await r.json();
+    toast(res.message || 'Added to calendar');
+    input.value='';
+    loadData();
+  }catch(err){ toast('Could not add that — try again'); }
+  btn.disabled=false; btn.textContent='Add';
+}
+
+/* ---------------- legend / filters ---------------- */
+function buildLegend(){
+  const el = document.getElementById('legend');
+  Object.entries(CONFIG.people).forEach(([name,colour])=>{
+    const chip = document.createElement('div');
+    chip.className='chip';
+    chip.innerHTML = `<span class="dot" style="background:${colour}"></span><span class="name">${name}</span>`;
+    chip.onclick = () => {
+      if(hidden.has(name)){ hidden.delete(name); chip.classList.remove('off'); }
+      else { hidden.add(name); chip.classList.add('off'); }
+      renderEvents();
+    };
+    el.appendChild(chip);
+  });
+}
+
+/* ---------------- helpers ---------------- */
+function colourFor(who){ return CONFIG.people[who] || '#8a94a3'; }
+function readable(hex){
+  const c=hex.replace('#',''); const r=parseInt(c.substr(0,2),16),
+        g=parseInt(c.substr(2,2),16), b=parseInt(c.substr(4,2),16);
+  return (0.299*r+0.587*g+0.114*b) > 165 ? '#1f2733' : '#ffffff';
+}
+function tickClock(){
+  const now=new Date();
+  document.getElementById('clock').textContent =
+    now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  document.getElementById('todayLabel').textContent =
+    now.toLocaleDateString([], {weekday:'long', month:'long', day:'numeric'});
+}
+let toastTimer;
+function toast(msg){
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'), 3200);
+}
+function escapeHTML(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+</script>
+</body>
+</html>
